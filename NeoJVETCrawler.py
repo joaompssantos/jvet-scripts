@@ -3,21 +3,20 @@
 #----------------------------------------------------------------------------
 # Created By  : João Santos
 # Created Date: 2023/12/13
-# Updated Date: 2023/12/14
-# version ='1.0.1'
+# Updated Date: 2023/12/20
+# version ='1.1'
 #
 # Description:
 #     JVET Meetings crawler, fetches meeting files and all documents
 #
 # To Do:
-#  - Smarter resume which would check already downloaded/extracted files
 #  - Parallel fetch or extraction or fetch and extraction
 # ---------------------------------------------------------------------------
 
 __author__ = "João Santos"
 __copyright__ = "Copyright 2023, João Santos"
 __license__ = "GPL2"
-__version__ = "1.0.1"
+__version__ = "1.1"
 __maintainer__ = "João Santos"
 __email__ = "joaompssantos@gmail.com"
 __status__ = "Production"
@@ -25,6 +24,7 @@ __status__ = "Production"
 
 import argparse
 from bs4 import BeautifulSoup
+import glob
 import openpyxl
 import os
 import pandas
@@ -98,7 +98,7 @@ def getAllMeetingsTable(args):
     notes_meetings_source = urllib.request.urlopen(notes_meetings_url)
     # Read html from source
     notes_meetings_soup = BeautifulSoup(notes_meetings_source, 'lxml')
-    # Links iterator extracted to a list for convinience
+    # Links iterator extracted to a list for convenience
     notes_meetings_links = ['Notes Link']
     
     # Loop the links to find those of an actual meeting (starting with /wftp3/av-arch/jvet-site/2)
@@ -124,7 +124,7 @@ def getAllMeetingsTable(args):
         info = infos.find_all('td')
         info_row = [i.text for i in info]
 
-        # Get corrependent link
+        # Get correspondent link
         link = ''
         if first == 0:
             first = 1
@@ -181,7 +181,7 @@ def getDocsTable(args, meeting_url):
     # Get meeting raw table from meeting page
     meeting_raw_table = pandas.read_html(meeting_url, extract_links = 'all')[1]
 
-    # Drop uneeded columns (namely: MPEG number, Created and First upload)
+    # Drop unneeded columns (namely: MPEG number, Created and First upload)
     meeting_raw_table.drop([1, 2, 3], axis=1, inplace=True)
 
     # Create the actual meeting table with all information
@@ -349,7 +349,7 @@ def fetchNotesLogistics(notes_urls, meeting_folder):
 
 
 # Download notes and logistics files
-def fetchZipFiles(docs_table, zip_folder):
+def fetchZipFiles(docs_table, zip_folder, dir_exists):
     # Create a list with the zip files location
     zip_files = []
 
@@ -361,11 +361,26 @@ def fetchZipFiles(docs_table, zip_folder):
         # zip out file name
         zip_file = os.path.join(zip_folder, urllib.parse.urlparse(zip_link[2]).path.split('/')[-1])
         
+        # If meeting directory already exists
+        if dir_exists:
+            # List old versions of the current file (if they exist, return empty list if it does not)
+            old_zip_file = glob.glob(os.path.join(zip_folder, zip_link[0] + '*'))
+
+            # If file to download already exists its skipped
+            if os.path.isfile(zip_file):
+                # Set current file as None so it can be checked during extraction
+                zip_files.append(None)
+                continue
+            # If there is a different version of the file to download the file is removed
+            elif old_zip_file:
+                os.remove(old_zip_file[0])
+
         print(f'            [{ix + 1:04} out of {no_docs:04}] Downloading {zip_link[0]} ...', end='')
         # Fetch file to notes_file
         urllib.request.urlretrieve(urllib.parse.quote(zip_link[2], safe=':/'), zip_file)
         # Print a message indicating that the extraction is complete
         print('    Done!')
+
         # Append file to list
         zip_files.append(zip_file)
 
@@ -373,7 +388,7 @@ def fetchZipFiles(docs_table, zip_folder):
 
 
 # Extract all meeting files
-def extractZipFiles(args, docs_table, zip_files, meeting_folder):
+def extractZipFiles(args, docs_table, zip_files, meeting_folder, dir_exists):
     # Create an error list for files that can't be extracted
     errorlist = []
 
@@ -384,11 +399,22 @@ def extractZipFiles(args, docs_table, zip_files, meeting_folder):
     for curr_doc, zip_file, ix in zip(docs_table[1:], zip_files, range(len(docs_table[1:]))):
         curr_doc = curr_doc[0]
 
+        # Check if file is None (meaning it was already present and extracted)
+        if zip_file is None:
+            continue
+
+        # Extraction target directory
+        extract_dir = os.path.join(meeting_folder, curr_doc)
+
+        # If meeting directory exists and doc folder exists the former is removed
+        if dir_exists and os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+
         try:
             with zipfile.ZipFile(zip_file, 'r') as archive:
                 print(f'            [{ix + 1:04} out of {no_docs:04}] Extracting {curr_doc} ...', end='')
                 # Extract all contents of the zip file to a directory with the doc number name
-                archive.extractall(path=os.path.join(meeting_folder, curr_doc))
+                archive.extractall(path=extract_dir)
                 # Print a message indicating that the extraction is complete
                 print('    Done!')
         except zipfile.BadZipfile:
@@ -408,6 +434,8 @@ def parseGlobalInfo(args, meeting_info_table):
 
     # Loop table meetings
     for meeting_row, ix in zip(meeting_info_table[1:], range(no_meetings)):
+        # Check flag for folder
+        dir_exists = False
         # Meeting name YYYY_MM_L_CITY
         meeting_name = f"{meeting_row[2].split('-')[0]}_{meeting_row[2].split('-')[1]}_{meeting_row[4]}_{meeting_row[1].replace(' ', '_')}"
         # NR_L_CITY_YYYY_MM
@@ -420,21 +448,22 @@ def parseGlobalInfo(args, meeting_info_table):
         meeting_file = os.path.join(meeting_folder, '#meeting_info.xlsx')
 
         # Skips current if the corresponding folder already exists
-        # If the meeting informations file does not exist or the force option
+        # If the meeting information file does not exist or the force option
         # is activated the current meeting operations are performed form scratch
         # The same happens for the last meeting
         if os.path.exists(meeting_folder):
             if args.force                           \
                or not os.path.exists(meeting_file)  \
-               or meeting_row == meeting_info_table[-1]:
+               or meeting_row == meeting_info_table[-1]: # Last meeting always redone
                 shutil.rmtree(meeting_folder)
             else:
-                continue
+                dir_exists = True #continue
         
         print(f'    [{ix + 1:03} out of {no_meetings:03}] Working on meeting {meeting_name}...')
         
         # Create directory for meeting
-        os.mkdir(meeting_folder)
+        if not dir_exists:
+            os.mkdir(meeting_folder)
 
         # Get current meeting table
         print('        Fetching meeting infos...')
@@ -448,13 +477,16 @@ def parseGlobalInfo(args, meeting_info_table):
 
         # Download zip files
         print('        Fetching doc zip files...')
-        os.mkdir(os.path.join(meeting_folder, args.zipdir))
-        zip_files = fetchZipFiles(docs_table, os.path.join(meeting_folder, args.zipdir))
+        # Create zip directory if it does not exist
+        zip_dir = os.path.join(meeting_folder, args.zipdir)
+        if not os.path.exists(zip_dir):
+            os.mkdir(zip_dir)
+        zip_files = fetchZipFiles(docs_table, zip_dir, dir_exists)
         print('        Zip files fetched!\n')
 
         # Unzip zip files
         print('        Extracting doc zip files...')
-        error_list = extractZipFiles(args, docs_table, zip_files, meeting_folder)
+        error_list = extractZipFiles(args, docs_table, zip_files, meeting_folder, dir_exists)
         # Remove zip files if option is set
         if args.rmzip == 'yes':
             os.remove(os.path.join(meeting_folder, args.zipdir))
