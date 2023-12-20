@@ -11,7 +11,7 @@
 #
 # To Do:
 #  - Smarter resume which would check already downloaded/extracted files
-#  - Parallel fetch or extaction or fetch and extraction
+#  - Parallel fetch or extraction or fetch and extraction
 # ---------------------------------------------------------------------------
 
 __author__ = "João Santos"
@@ -57,8 +57,7 @@ def getArgs():
     parser.add_argument('-n', '--notesource', dest='notesource', nargs=1, type=str, required=False,
                         help='link to the page with the list of all JVET meeting notes (might not work if changed)',
                         default = 'https://www.itu.int/wftp3/av-arch/jvet-site/')
-    parser.add_argument('-z', '--zipdir', dest='zipdir', nargs=1, type=str, required=False,
-                        help='link to the page with the list of all JVET meeting notes (might not work if changed)',
+    parser.add_argument('-z', '--zipdir', dest='zipdir', nargs=1, type=str, required=False, help='directory to store the zip files',
                         default = 'zipfiles')
 
     requiredNamed = parser.add_argument_group('required arguments')
