@@ -3,8 +3,8 @@
 #----------------------------------------------------------------------------
 # Created By  : João Santos
 # Created Date: 2023/12/13
-# Updated Date: 2023/12/20
-# version ='1.1'
+# Updated Date: 2024/01/08
+# version ='1.2'
 #
 # Description:
 #     JVET Meetings crawler, fetches meeting files and all documents
@@ -16,7 +16,7 @@
 __author__ = "João Santos"
 __copyright__ = "Copyright 2023, João Santos"
 __license__ = "GPL2"
-__version__ = "1.1"
+__version__ = "1.2"
 __maintainer__ = "João Santos"
 __email__ = "joaompssantos@gmail.com"
 __status__ = "Production"
@@ -48,6 +48,7 @@ def getArgs():
     parser = argparse.ArgumentParser(description='Get and keep up to date the documentation and meeting notes of JVET')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False, help='verbose mode to get extra information')
     parser.add_argument('-p', '--pause', dest='pause', action='store_true', required=False, help='pause on verbose')
+    parser.add_argument('-l', '--lastmeetings', dest='lastmeetings', type=int, required=False, help='Fetch only last lastmeetings.', default=-1)
     parser.add_argument('-s', '--nosavexls', dest='savexls', action='store_false', required=False, help='disable saving information as xls file')
     parser.add_argument('-r', '--rmzip', dest='rmzip', action='store_true', required=False, help='remove zip files after extraction')
     parser.add_argument('-f', '--force', dest='force', action='store_true', required=False, help='force to redo operations that would be skipped')
@@ -124,7 +125,7 @@ def getAllMeetingsTable(args):
         info = infos.find_all('td')
         info_row = [i.text for i in info]
 
-        # Get correspondent link
+        # Get corresponding link
         link = ''
         if first == 0:
             first = 1
@@ -429,11 +430,17 @@ def extractZipFiles(args, docs_table, zip_files, meeting_folder, dir_exists):
 
 # Parse meeting info table
 def parseGlobalInfo(args, meeting_info_table):
+    # Check if lastmeetings is used to set where to start looping the table of all meetings
+    if args.lastmeetings > 0:
+        start = len(meeting_info_table) - args.lastmeetings
+    else:
+        start = 1
+
     # Number of meetings
-    no_meetings = len(meeting_info_table[1:])
+    no_meetings = len(meeting_info_table[start:])
 
     # Loop table meetings
-    for meeting_row, ix in zip(meeting_info_table[1:], range(no_meetings)):
+    for meeting_row, ix in zip(meeting_info_table[start:], range(no_meetings)):
         # Check flag for folder
         dir_exists = False
         # Meeting name YYYY_MM_L_CITY
@@ -527,7 +534,11 @@ def main():
     print('Table compiled!\n')
 
     # Parse the previous table information and download files
-    print('Parsing all meetings...')
+    if args.lastmeetings > 0:
+        print(f'Parsing last {args.lastmeetings} meetings...')
+    else:
+        print('Parsing all meetings...')
+
     parseGlobalInfo(args, meeting_info_table)
     print('Parsing completed!\n')
 
