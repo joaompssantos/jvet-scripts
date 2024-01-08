@@ -48,10 +48,10 @@ def getArgs():
     parser = argparse.ArgumentParser(description='Get and keep up to date the documentation and meeting notes of JVET')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', required=False, help='verbose mode to get extra information')
     parser.add_argument('-p', '--pause', dest='pause', action='store_true', required=False, help='pause on verbose')
-    parser.add_argument('-l', '--lastmeetings', dest='lastmeetings', type=int, required=False, help='Fetch only last lastmeetings.', default=-1)
     parser.add_argument('-s', '--nosavexls', dest='savexls', action='store_false', required=False, help='disable saving information as xls file')
     parser.add_argument('-r', '--rmzip', dest='rmzip', action='store_true', required=False, help='remove zip files after extraction')
     parser.add_argument('-f', '--force', dest='force', action='store_true', required=False, help='force to redo operations that would be skipped')
+    parser.add_argument('-l', '--lastmeetings', dest='lastmeetings', type=int, required=False, help='fetch only last lastmeetings', default=-1)
     parser.add_argument('-d', '--docsource', dest='docsource', nargs=1, type=str, required=False,
                         help='link to the page with the list of all JVET meetings (might not work if changed)',
                         default = 'https://www.jvet-experts.org/doc_end_user/all_meeting.php')
