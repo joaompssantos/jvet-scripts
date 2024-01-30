@@ -1,4 +1,26 @@
 # -*- coding: utf-8 -*-
+#----------------------------------------------------------------------------
+# Created By  : João Santos with some help by ChatGPT
+# Created Date: 2024/01/25
+# Updated Date: 2024/01/30
+# version ='1.0'
+#
+# Description:
+#     JVET Meetings File Finder, searches for specific meeting files and
+#     provides an interface for opening the directly
+#
+# To Do:
+#  - Dropdown menu to select documents with immutable document numbers
+# ---------------------------------------------------------------------------
+
+__author__ = "João Santos"
+__copyright__ = "Copyright 2024, João Santos"
+__license__ = "GPL2"
+__version__ = "1.0"
+__maintainer__ = "João Santos"
+__email__ = "joaompssantos@gmail.com"
+__status__ = "Production"
+
 
 import json
 import operator
