@@ -2,21 +2,18 @@
 #----------------------------------------------------------------------------
 # Created By  : João Santos with some help by ChatGPT
 # Created Date: 2024/01/25
-# Updated Date: 2024/01/30
-# version ='1.0'
+# Updated Date: 2024/01/31
+# version ='1.1'
 #
 # Description:
 #     JVET Meetings File Finder, searches for specific meeting files and
 #     provides an interface for opening the directly
-#
-# To Do:
-#  - Dropdown menu to select documents with immutable document numbers
 # ---------------------------------------------------------------------------
 
 __author__ = "João Santos"
 __copyright__ = "Copyright 2024, João Santos"
 __license__ = "GPL2"
-__version__ = "1.0"
+__version__ = "1.1"
 __maintainer__ = "João Santos"
 __email__ = "joaompssantos@gmail.com"
 __status__ = "Production"
@@ -30,7 +27,8 @@ import subprocess
 from enum import Enum
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout, QFileDialog,
-    QListWidget, QLineEdit, QHBoxLayout, QLabel, QMessageBox, QCheckBox
+    QListWidget, QComboBox, QHBoxLayout, QLabel, QMessageBox, QCheckBox,
+    QCompleter
 )
 from PyQt6.QtCore import Qt
 from pathlib import Path
@@ -77,9 +75,22 @@ class JVETDocumentOpener(QWidget):
 
         # Layout for the search box and search button
         search_box_layout = QHBoxLayout()
-        self.search_box = QLineEdit(self)
-        self.search_box.setPlaceholderText('Insert document number here')
-        self.search_box.setFocus()
+
+        # Use QComboBox to allow for a combination of dropdown menu and search text box
+        self.search_box = QComboBox()
+        self.search_box.addItems(self.immutable_docs[0])
+        self.search_box.setCurrentIndex(-1)
+        self.search_box.setInsertPolicy(QComboBox.InsertPolicy.InsertAtBottom)
+
+        # Set text box properties
+        self.search_box.setEditable(True)
+        self.search_box.lineEdit().setPlaceholderText('Insert document number here')
+
+        # Create a completer and set it for the search box
+        completer = QCompleter(self.immutable_docs[0], self)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)  # Change filter mode if needed
+        completer.setModel(self.search_box.model())
+        self.search_box.setCompleter(completer)
 
         # Set the width of the search text box to match the QLabel's preferred size
         search_box_width = self.directory_label.sizeHint().width()
@@ -108,8 +119,11 @@ class JVETDocumentOpener(QWidget):
         # Set the main layout
         self.setLayout(search_layout)
 
+        # Set focus to search box
+        self.search_box.setFocus()
+
         # Connect returnPressed signal to perform_search method
-        self.search_box.returnPressed.connect(self.perform_search)
+        self.search_box.lineEdit().returnPressed.connect(self.perform_search)
 
     def create_open_show_layout(self):
         # Layout for opening documents and toggling options
@@ -181,19 +195,38 @@ class JVETDocumentOpener(QWidget):
 
     # Method to get found files
     def perform_search(self):
+        # Get string to be searched
+        target_string = self.get_document_number().lower()
+
         self.found_files = []
+
+        self.show_feedback_message(f'Searching for {target_string}')
         for file_path in self.documents_directory.rglob('*'):
-            if self.search_box.text().lower() in str(file_path).lower():
+            # Ignore current item if its name starts with the target string followed by a _
+            if file_path.name.startswith(f'{target_string}_'):
+                continue
+            # Check if the target_string is in the current item name
+            elif (file_path.is_file() and not file_path.parent.name.startswith(f'{target_string}_') and target_string in str(Path(file_path.parent.name, file_path.name)).lower()) or \
+                 (file_path.is_dir() and target_string in str(file_path.name).lower()):
                 self.found_files.append([str(file_path.parent.absolute()), file_path.name])
 
+        # Sorts output list alphabetically
         self.found_files.sort(key=operator.itemgetter(0, 1))
 
+        # Update the list of displayed items
         self.update_displayed_items()
 
         if self.found_files:
-            self.show_feedback_message(f'{len(self.found_files)} files found successfully!')
+            self.show_feedback_message(f'{len(self.found_files)} file(s) found successfully!')
         else:
             self.show_feedback_message('No files found.')
+
+    # Map the immutable document name to its number (returns provided text is not present in immutables list)
+    def get_document_number(self):
+        if self.search_box.lineEdit().text() in self.immutable_docs[0]:
+            return self.immutable_docs[1][self.immutable_docs[0].index(self.search_box.lineEdit().text())]
+        else:
+            return self.search_box.lineEdit().text()
 
     # Handler for opening selected document
     def open_selected_document(self, selected_item):
@@ -240,6 +273,7 @@ class JVETDocumentOpener(QWidget):
         if Path(settings_file_path).exists():
             with open(settings_file_path, 'r') as settings_file:
                 settings = json.load(settings_file)
+                self.immutable_docs = self.parse_immutables(settings.get('immutable_documents', '').split(','))
                 self.documents_directory = Path(settings.get('documents_directory', str(Path.home())))
                 self.show_full_path = settings.get('show_full_path', False)
                 self.hide_documents_directory = settings.get('hide_documents_directory', True)
@@ -249,6 +283,7 @@ class JVETDocumentOpener(QWidget):
         # Save settings to a file
         settings_file_path = 'settings.json'
         settings = {
+            'immutable_documents': str(self.build_immutables()),
             'documents_directory': str(self.documents_directory),
             'show_full_path': self.show_full_path,
             'hide_documents_directory': self.hide_documents_directory
@@ -256,6 +291,14 @@ class JVETDocumentOpener(QWidget):
         with open(settings_file_path, 'w') as settings_file:
             json.dump(settings, settings_file)
     
+    # Parse immutable files to produce list
+    def parse_immutables(self, immutables: list):
+        return list(map(list, zip(*(string.split(':') for string in immutables))))
+
+    # Build immutables string
+    def build_immutables(self):
+        return ','.join([f'{name}:{number}' for name, number in zip(*self.immutable_docs)])
+
     # Slot method for the closeEvent of the main window
     def closeEvent(self, event):
         # Save settings before closing the application
