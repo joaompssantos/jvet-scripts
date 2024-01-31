@@ -3,20 +3,22 @@
 #----------------------------------------------------------------------------
 # Created By  : João Santos
 # Created Date: 2023/12/13
-# Updated Date: 2024/01/08
-# version ='1.2'
+# Updated Date: 2024/01/31
+# version ='1.3'
 #
 # Description:
 #     JVET Meetings crawler, fetches meeting files and all documents
 #
 # To Do:
 #  - Parallel fetch or extraction or fetch and extraction
+#  - Replace os, shutil and glob with pathlib
+#  - Find smarter way of computing last meeting
 # ---------------------------------------------------------------------------
 
 __author__ = "João Santos"
 __copyright__ = "Copyright 2023, João Santos"
 __license__ = "GPL2"
-__version__ = "1.2"
+__version__ = "1.3"
 __maintainer__ = "João Santos"
 __email__ = "joaompssantos@gmail.com"
 __status__ = "Production"
@@ -32,10 +34,6 @@ import shutil
 from tabulate import tabulate
 import urllib
 import zipfile
-
-
-### To Do
-# Make a proper header for the file with copyright and what not
 
 
 # Pause function for debug
@@ -331,12 +329,26 @@ def getMeetingInfos(args, meeting_path, meeting_info):
 
 # Download notes and logistics files
 def fetchNotesLogistics(notes_urls, meeting_folder):
-    notes_file = ''
+    notes_file = os.path.join(meeting_folder, f'JVET-{os.path.basename(meeting_folder).split("_")[2]}1000-MeetingNotes')
     logistics_file = ''
 
-    if not notes_urls[0] is None:
+    # Folder where final notes should be located
+    final_notes_path = os.path.join(meeting_folder, f'JVET-{os.path.basename(meeting_folder).split("_")[2]}1000')
+
+    # Check if final notes path exists
+    if os.path.isdir(final_notes_path):
+        # List the doc or docx files in the path and get the last
+        doc_file = (glob.glob(f"{final_notes_path}/*.doc") + glob.glob(f"{final_notes_path}/*.docx"))[-1]
+
+        # Complete notes_file name with the appropriate extension
+        notes_file = notes_file + os.path.splitext(doc_file)[-1]
+
+        # Copy file to appropriate place
+        shutil.copy(doc_file, notes_file)
+    # If the final nots path does not exist check if there is an url to download the temporary ones
+    elif not notes_urls[0] is None:
         # Notes out file name
-        notes_file = os.path.join(meeting_folder, urllib.parse.urlparse(notes_urls[0]).path.split('/')[-1])
+        notes_file = notes_file + '-temp' + os.path.splitext(urllib.parse.urlparse(notes_urls[0]).path.split('/')[-1])[-1]
         # Fetch file to notes_file
         urllib.request.urlretrieve(notes_urls[0], notes_file)
 
@@ -477,11 +489,6 @@ def parseGlobalInfo(args, meeting_info_table):
         no_docs, docs_table, notes_links = getMeetingInfos(args, meeting_folder, meeting_row)
         print('        Meeting infos fetched!\n')
 
-        # Download notes and logistics files
-        print('        Fetching notes and logistics files...')
-        notes_links = fetchNotesLogistics(notes_links, meeting_folder)
-        print('        Files fetched!\n')
-
         # Download zip files
         print('        Fetching doc zip files...')
         # Create zip directory if it does not exist
@@ -512,6 +519,11 @@ def parseGlobalInfo(args, meeting_info_table):
             # Information messages
             print(f'{len(error_list)} file(s) could not be extracted.')
             print(f'A file with details was saved to: {error_file}.\n')
+
+        # Download notes and logistics files
+        print('        Fetching notes and logistics files...')
+        notes_links = fetchNotesLogistics(notes_links, meeting_folder)
+        print('        Files fetched!\n')
         
         # Save infos to xls
         if args.savexls:
