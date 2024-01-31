@@ -50,6 +50,8 @@ class JVETDocumentOpener(QWidget):
         self.hide_documents_directory = True
         self.found_files = []
 
+        self.settings_file_path = Path.joinpath(Path(__file__).expanduser().resolve().parent, 'settings.json')
+
         # Load user settings
         self.load_settings()
 
@@ -270,9 +272,8 @@ class JVETDocumentOpener(QWidget):
     # Method to load user settings
     def load_settings(self):
         # Load settings from a file if available
-        settings_file_path = 'settings.json'
-        if Path(settings_file_path).exists():
-            with open(settings_file_path, 'r') as settings_file:
+        if Path(self.settings_file_path).exists():
+            with open(self.settings_file_path, 'r') as settings_file:
                 settings = json.load(settings_file)
                 self.immutable_docs = self.parse_immutables(settings.get('immutable_documents', '').split(','))
                 self.documents_directory = Path(settings.get('documents_directory', str(Path.home())))
@@ -282,14 +283,13 @@ class JVETDocumentOpener(QWidget):
     # Method to save user settings
     def save_settings(self):
         # Save settings to a file
-        settings_file_path = 'settings.json'
         settings = {
             'immutable_documents': str(self.build_immutables()),
             'documents_directory': str(self.documents_directory),
             'show_full_path': self.show_full_path,
             'hide_documents_directory': self.hide_documents_directory
         }
-        with open(settings_file_path, 'w') as settings_file:
+        with open(self.settings_file_path, 'w') as settings_file:
             json.dump(settings, settings_file)
     
     # Parse immutable files to produce list
