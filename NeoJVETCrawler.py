@@ -337,6 +337,12 @@ def fetchNotesLogistics(notes_urls, meeting_folder):
 
     # Check if final notes path exists
     if os.path.isdir(final_notes_path):
+        # Remove temporary meeting notes file if it exists
+        tmp_files = glob.glob(notes_file + '-temp*')
+        for tmp_file in tmp_files:
+            if os.path.isfile(tmp_file):
+                os.remove(tmp_file)
+
         # List the doc or docx files in the path and get the last
         doc_file = (glob.glob(f"{final_notes_path}/*.doc") + glob.glob(f"{final_notes_path}/*.docx"))[-1]
 
